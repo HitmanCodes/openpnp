@@ -28,6 +28,7 @@ import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.beans.PropertyChangeListener;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ import javax.swing.Action;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JOptionPane;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
@@ -56,23 +58,28 @@ import org.openpnp.model.LengthUnit;
 import org.openpnp.model.Location;
 import org.openpnp.model.Motion.MotionOption;
 import org.openpnp.model.Part;
+import org.openpnp.machine.reference.driver.GcodeDriver;
 import org.openpnp.spi.Actuator;
 import org.openpnp.spi.Feeder;
 import org.openpnp.spi.Head;
+import org.openpnp.spi.Driver;
 import org.openpnp.spi.HeadMountable;
 import org.openpnp.spi.Machine;
 import org.openpnp.spi.Nozzle;
 import org.openpnp.spi.Nozzle.RotationMode;
 import org.openpnp.spi.base.AbstractNozzle;
+import org.openpnp.spi.base.AbstractActuator;
 import org.openpnp.util.BeanUtils;
 import org.openpnp.util.Cycles;
 import org.openpnp.util.MovableUtils;
 import org.openpnp.util.UiUtils;
+// import org.python.core.exceptions;
 
 import com.jgoodies.forms.layout.ColumnSpec;
 import com.jgoodies.forms.layout.FormLayout;
 import com.jgoodies.forms.layout.FormSpecs;
 import com.jgoodies.forms.layout.RowSpec;
+
 
 /**
  * Contains controls, DROs and status for the machine. Controls: C right / left, X + / -, Y + / -, Z
@@ -80,13 +87,742 @@ import com.jgoodies.forms.layout.RowSpec;
  * 
  * @author jason
  */
+
+class UI{
+    public static int getOption(String title,String message, String[] options, String optDefault){
+        int val = JOptionPane.showOptionDialog(null, message, title, JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, optDefault);
+        return val; 
+    }
+    public static boolean getConfirmation(String title, String message, String[] options, String optDefault){    
+        if (options==null){
+            options = new String[]{"Yes", "No"};
+        }
+        if (optDefault==null){
+            optDefault = options[0];
+        }
+            
+        int val = getOption(title, message, options, optDefault);
+        if (val == 0){
+            return true;
+        }
+        return false;
+    }
+    public static Object getUserInput(String msg, Object defaultValue){
+        return JOptionPane.showInputDialog(msg, defaultValue);
+    }
+    public static void showMessage(String msg){
+        JOptionPane.showMessageDialog(null, msg);
+    }
+}
+
+class EndStopConversations{
+
+    public static Machine machine = Configuration.get().getMachine();
+    public static Driver driver=machine.getDrivers().get(1);
+    public static GcodeDriver gcodeDriver = (GcodeDriver)driver;
+    
+    public static Map<String, Boolean> checkEndStops(String purpose){
+        String commandString = "M119";
+        try{
+            gcodeDriver.checkOkSendCommandForEndStopStatus(commandString);
+        }catch(Exception e){
+        }
+        long start = System.currentTimeMillis();
+        while(!gcodeDriver.isOkRecievedForEndStopStatus()){
+            System.out.println("Script Status: Awaiting M119 Response for"+purpose);
+            try{
+                Thread.sleep(1000);
+            }catch(InterruptedException e){
+            }
+            if(System.currentTimeMillis()-start > 10000){
+                System.out.println("Script Status: Could Not Fetch M119 Response");
+                return null;
+            }
+        }
+        return loggedResponsesForEndStopStatusToDictionary(gcodeDriver.loggedResponsesForEndStopStatus);
+    }
+
+    public static Map<String, Boolean> loggedResponsesForEndStopStatusToDictionary(ArrayList<String> loggedlist){
+        Map<String, Boolean> dictionary = new HashMap<String, Boolean>();
+        for(int i=0;i<loggedlist.size();i++){
+            dictionary.put(loggedlist.get(i).split(": ")[0],loggedlist.get(i).split(": ")[1].equals("TRIGGERED"));
+        }
+        return dictionary;
+    }
+}
+
+class MultiThreadProcessforConveyorWidthScript extends Thread {
+    
+    
+    public static Machine machine = Configuration.get().getMachine();
+    public static Driver driver=machine.getDrivers().get(1);
+    public static GcodeDriver gcodeDriver = (GcodeDriver)driver;
+    public static JButton machineButton=JogControlsPanel.machineStartStop;
+
+    
+  
+    @Override
+    public void run() {
+        
+        String conveyorhorizontalAxisLetter = "U";
+        //String conveyorhorizontalAxisEndStopString = "c_min";
+        
+        int pcb_width=0;
+        int conveyorWidthOffSet=0;
+        
+
+        boolean processAbortFlag =  !UI.getConfirmation("Confirmation","Starting the Automated Conveyor Width Setting Script?\nPlease remove PCBs from conveyor belt if any. \nIf at any point the process is aborted, you can relaunch the sript.",new String[]{"Start","Abort"},null);
+        
+        System.out.println("Script Status: Checking Machine Status");
+        
+        if(!processAbortFlag && !machine.isEnabled()){
+            if(UI.getConfirmation("Machine Status: Off","Machine is not Enabled. \nClick 'Start' to start the machine. \nClick 'Abort' or Close this dialog box to abort the script.", new String[]{"Start","Abort"}, null)){
+                machineButton.doClick();
+                long start = System.currentTimeMillis();
+                while(!machine.isEnabled()){
+                    System.out.println("Script Status: Turning Machine On");
+                    try{
+                        Thread.sleep(500);
+                    }catch(InterruptedException e){
+
+                    }
+                    if(System.currentTimeMillis() - start > 10000){
+                        System.out.println("Script Status: Could Not Turn Machine On");
+                        processAbortFlag = true;
+                        break;
+                    }
+                }
+                machineButton=JogControlsPanel.machineStartStop;
+            }
+            else{
+                processAbortFlag = true;
+            }
+        }
+
+
+        if(!processAbortFlag){
+            while(true){
+                Object o = UI.getUserInput("Enter PCB Width in (mm)",0);
+                if(o==null){
+                    processAbortFlag = true;
+                    UI.showMessage("Recieved 'null'. Cancelled..Exiting from Script");
+                    break;
+                }
+                if (o.toString().equals("")){
+                    processAbortFlag = true;
+                    UI.showMessage("Recieved 'null'. Cancelled..Exiting from Script");
+                    break;
+                }
+                pcb_width = Integer.parseInt(o.toString());
+                if (pcb_width==0){
+                    UI.showMessage("PCB Width can't be set to 0 mm.");
+                }
+                if (pcb_width!=0){
+                    UI.showMessage("PCB Width: "+pcb_width+"mm");
+                    break;
+                }
+            }
+        }
+
+
+        if(!processAbortFlag){
+            String commandString = "G28" + conveyorhorizontalAxisLetter;
+            try{
+                gcodeDriver.checkOkSendCommand(commandString);
+            }catch(Exception e){
+            }
+            long start = System.currentTimeMillis();
+            while(! gcodeDriver.isOkRecieved()){
+                System.out.println("Script Status: Homing Conveyor Horizontal Axis");
+                try{
+                    Thread.sleep(1000);
+                }catch(InterruptedException e){
+                }
+                if(System.currentTimeMillis() - start > 10000){
+                    System.out.println("Script Status: Could Not Home "+conveyorhorizontalAxisLetter);
+                    processAbortFlag = true;
+                    break;
+                }
+            }
+            if(!processAbortFlag){
+                System.out.println("Script Status: Homed "+conveyorhorizontalAxisLetter);
+            }
+        }
+
+
+        if(!processAbortFlag){
+            while(true){
+                Object o = UI.getUserInput("Measure and Enter Conveyor Width OffSet in (mm)",0);
+                if(o==null){
+                    processAbortFlag = true;
+                    UI.showMessage("Recieved 'null'. Cancelled..Exiting from Script");
+                    break;
+                }
+                if (o.toString().equals("")){
+                    processAbortFlag = true;
+                    UI.showMessage("Recieved 'null'. Cancelled..Exiting from Script");
+                    break;
+                }
+                conveyorWidthOffSet = Integer.parseInt(o.toString());
+                if (conveyorWidthOffSet!=0){
+                    UI.showMessage("Conveyor Width Off Set: "+conveyorWidthOffSet+"mm");
+                    break;
+                }
+            }
+        }
+
+
+        if(!processAbortFlag){
+            String commandString = "G1" + conveyorhorizontalAxisLetter + Integer.toString(pcb_width-conveyorWidthOffSet);
+            try{
+                gcodeDriver.checkOkSendCommand(commandString);
+            }catch(Exception e){
+            }
+            long start = System.currentTimeMillis();
+            while(!gcodeDriver.isOkRecieved()){
+                System.out.println("Script Status: Setting Conveyor Horizontal Axis");
+                try{
+                    Thread.sleep(1000);
+                }catch(InterruptedException e){
+                }
+                if(System.currentTimeMillis() - start > 10000){
+                    System.out.println("Script Status: Could Not Set "+conveyorhorizontalAxisLetter);
+                    processAbortFlag = true;
+                    break;
+                }
+            }
+            if(!processAbortFlag){
+                System.out.println("Script Status: Set "+conveyorhorizontalAxisLetter+" with PCB Width");
+            }
+        }
+
+
+        if(!processAbortFlag){
+            UI.showMessage("Please Check PCB fit at the conveyor");
+        }
+
+    }
+}
+
+class MultiThreadProcessforConveyorScript extends Thread {
+    
+    public static Machine machine = Configuration.get().getMachine();
+    public static Driver driver=machine.getDrivers().get(1);
+    public static GcodeDriver gcodeDriver = (GcodeDriver)driver;
+    public static JButton machineButton=JogControlsPanel.machineStartStop;
+
+    @Override
+    public void run() {
+        
+
+        String conveyor1AxisLetter = "X"; 
+        String conveyor1AxisEndStopString = "x_min";
+ 
+
+        boolean processAbortFlag =  !UI.getConfirmation("Confirmation","Starting the Automated Ramp Script? \nA new dialog box will appear. Closing the dialog box at any point will kill the auto ramp thread.",new String[]{"Start","Abort"},null);
+        
+        System.out.println("Script Status: Checking Machine Status");
+        
+        if(!processAbortFlag && !machine.isEnabled()){
+            if(UI.getConfirmation("Machine Status: Off","Machine is not Enabled. \nClick 'Start' to start the machine. \nClick 'Abort' or Close this dialog box to abort the script.", new String[]{"Start","Abort"}, null)){
+                machineButton.doClick();
+                long start = System.currentTimeMillis();
+                while(!machine.isEnabled()){
+                    System.out.println("Script Status: Turning Machine On");
+                    try{
+                        Thread.sleep(500);
+                    }catch(InterruptedException e){
+
+                    }
+                    if(System.currentTimeMillis() - start > 10000){
+                        System.out.println("Script Status: Could Not Turn Machine On");
+                        processAbortFlag = true;
+                        break;
+                    }
+                }
+                machineButton=JogControlsPanel.machineStartStop;
+            }
+            else{
+                processAbortFlag = true;
+            }
+        }
+        if(!processAbortFlag){
+            JogControlsPanel.threadforJobScript = new MultiThreadProcessforJobScript();
+            JogControlsPanel.threadforJobScript.start();
+        }
+
+        if(!processAbortFlag){
+            MainFrame.showMessageforConveyorScript("Conveyor Automated Process","Automated Conveyor Started..");
+            while(true){    
+                if(!processAbortFlag){
+                    Map<String, Boolean> dictionary = EndStopConversations.checkEndStops("null checking");
+                    if(dictionary==null){
+                        processAbortFlag = true;
+                    }
+                    else{
+                        if(dictionary.get(conveyor1AxisEndStopString)){
+                            MainFrame.updateMessageforConveyorScript("Waiting PCB at IR Sensor 1");
+                            if(JogControlsPanel.ishomingNow){
+                                while(JogControlsPanel.ishomingNow){
+                                    try{
+                                        Thread.sleep(200);
+                                    }catch(InterruptedException e){
+                                    }
+                                }
+                            }
+                            while(EndStopConversations.checkEndStops("pcb at IR sensor 1").get(conveyor1AxisEndStopString)){
+                                System.out.println("Waiting PCB at IR Sensor 1");
+                                try{
+                                    Thread.sleep(1500);
+                                }catch(InterruptedException e){
+                                }
+                                if(JogControlsPanel.ishomingNow){
+                                    while(JogControlsPanel.ishomingNow){
+                                        try{
+                                            Thread.sleep(200);
+                                        }catch(InterruptedException e){
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        MainFrame.updateMessageforConveyorScript("PCB Ready at IR Sensor 1");
+                    }
+                }
+
+                if(JogControlsPanel.ishomingNow){
+                    while(JogControlsPanel.ishomingNow){
+                        try{
+                            Thread.sleep(200);
+                        }catch(InterruptedException e){
+                        }
+                    }
+                }
+
+                JogControlsPanel.ishomingNow = true;
+                
+                if(!processAbortFlag){
+                    String commandString = "G28" + conveyor1AxisLetter;
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString);
+                    }catch(Exception e){
+                    }
+                    long start = System.currentTimeMillis();
+                    while(! gcodeDriver.isOkRecieved()){
+                        MainFrame.updateMessageforConveyorScript("Script Status: Homing "+ conveyor1AxisLetter +"Axis");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start > 10000){
+                            MainFrame.updateMessageforConveyorScript("Script Status: Could Not Home "+conveyor1AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    if(!processAbortFlag){
+                        JogControlsPanel.setPcbAtFirstIrSensor=true;
+                    }
+                }
+
+                JogControlsPanel.ishomingNow = false;
+
+                if(!processAbortFlag){
+                    if(!JogControlsPanel.setPcbAtSecondIrSensor){
+                        MainFrame.updateMessageforConveyorScript("Waiting for delivery at 2nd IR Sensor");
+                        while(!JogControlsPanel.setPcbAtSecondIrSensor){
+                            try{
+                                Thread.sleep(1000);
+                            }catch(InterruptedException e){
+                            }
+                        }
+                    }
+                    MainFrame.updateMessageforConveyorScript("Recieved at 2nd IR Sensor");
+                    MainFrame.updateMessageforConveyorScript("Looping Again");
+                    JogControlsPanel.setPcbAtSecondIrSensor=false;
+                }
+
+
+                if(processAbortFlag){
+
+                    MainFrame.updateMessageforConveyorScript("Error: Close The Dialog Box");
+                    break;
+                }
+            }
+        }
+        if(processAbortFlag){
+            JogControlsPanel.threadforConveyorScript=null;
+        }
+    }
+}
+
+class MultiThreadProcessforJobScript extends Thread {
+    
+    
+    public static Machine machine = Configuration.get().getMachine();
+    public static Driver driver=machine.getDrivers().get(1);
+    public static GcodeDriver gcodeDriver = (GcodeDriver)driver;
+    public static JButton machineButton=JogControlsPanel.machineStartStop;
+
+
+      
+    @Override
+    public void run() {
+        
+
+        String conveyor1AxisLetter = "X";
+        String conveyor2AxisLetter = "Y";
+        String conveyor3AxisLetter = "Z";
+
+        // String conveyor1AxisEndStopString = "x_max";
+        String conveyor2AxisEndStopString = "y_min";
+        //String conveyor3AxisEndStopString = "z_min";
+        
+        int numberOfPcbs=0;
+        
+        // boolean processAbortFlag =  !UI.getConfirmation("Confirmation","Starting the Job Script? \nMake Sure Auto Ramp Script is already running. A new dialog box will appear. Closing the dialog box at any point will kill the Job thread.",new String[]{"Start","Abort"},null);
+        
+        boolean processAbortFlag = false;
+
+        if(!processAbortFlag){
+            if(JogControlsPanel.threadforConveyorScript==null){
+                UI.showMessage("Please Start the Auto Ramp First");
+                processAbortFlag = true;
+            }
+        }
+
+        if(!processAbortFlag){
+            while(true){
+                Object o = UI.getUserInput("Enter Number Of PCBs",0);
+                if(o==null){
+                    processAbortFlag = true;
+                    UI.showMessage("Recieved 'null'. Cancelled..Exiting from Script");
+                    break;
+                }
+                if (o.toString().equals("")){
+                    processAbortFlag = true;
+                    UI.showMessage("Recieved 'null'. Cancelled..Exiting from Script");
+                    break;
+                }
+                numberOfPcbs = Integer.parseInt(o.toString());
+                if (numberOfPcbs==0){
+                    UI.showMessage("Number Of PCBs can't be set to 0 mm.");
+                }
+                if (numberOfPcbs!=0){
+                    UI.showMessage("Number Of PCBs "+numberOfPcbs);
+                    break;
+                }
+            }
+        }
+        
+        int n = numberOfPcbs;
+
+        if(!processAbortFlag){
+            MainFrame.showMessageforJobScript("n Jobs for n Number Of PCBs","n Jobs Script Started..");
+            while(n-->0){
+                
+                if(!processAbortFlag){
+                    if(!JogControlsPanel.setPcbAtFirstIrSensor){
+                        MainFrame.updateMessageforJobScript("Waiting set PCB at IR Sensor 1");
+                        while(!JogControlsPanel.setPcbAtFirstIrSensor){
+                            System.out.println("Waiting set PCB at IR Sensor 1");
+                            try{
+                                Thread.sleep(1000);
+                            }catch(InterruptedException e){
+                            }
+                        }
+                    }
+                    JogControlsPanel.setPcbAtFirstIrSensor = false;
+                    MainFrame.updateMessageforJobScript("PCB set at IR Sensor 1");
+
+                    if(JogControlsPanel.ishomingNow){
+                        while(JogControlsPanel.ishomingNow){
+                            try{
+                                Thread.sleep(200);
+                            }catch(InterruptedException e){
+                            }
+                        }
+                    }
+
+                    if(!EndStopConversations.checkEndStops("Empty 2nd Sensor").get(conveyor2AxisEndStopString)){
+                        MainFrame.updateMessageforJobScript("Empty IR Sensor 2.. Caliing");
+                    }
+                    else{
+                        MainFrame.updateMessageforJobScript("Error: Something Detected at IR Sensor 2");
+                        processAbortFlag = true;
+                        break;
+                    }
+                }
+
+                if(!processAbortFlag){
+                    String commandString_ = "G92" + conveyor2AxisLetter + Integer.toString(0);
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString_);
+                    }catch(Exception e){
+                    }
+                    long start_ = System.currentTimeMillis();
+                    while(!gcodeDriver.isOkRecieved()){
+                        System.out.println("Script Status: Setting Conveyor axis 2 to 0");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start_ > 10000){
+                            System.out.println("Script Status: Could Not Set "+conveyor2AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    String commandString = "G1" + conveyor1AxisLetter + Integer.toString(-250) + conveyor2AxisLetter + Integer.toString(-250);
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString);
+                    }catch(Exception e){
+                    }
+                    long start = System.currentTimeMillis();
+                    while(!gcodeDriver.isOkRecieved()){
+                        System.out.println("Script Status: Moving Conveyor Axis 1");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start > 10000){
+                            System.out.println("Script Status: Could Not Move "+conveyor1AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    if(!processAbortFlag){
+                        System.out.println("Script Status: Moved "+conveyor1AxisLetter+ " by 300");
+                    }
+                }
+
+                try{
+                    Thread.sleep(3000);
+                }catch(InterruptedException e){
+
+                }
+
+                if(JogControlsPanel.ishomingNow){
+                    while(JogControlsPanel.ishomingNow){
+                        try{
+                            Thread.sleep(200);
+                        }catch(InterruptedException e){
+                        }
+                    }
+                }
+
+                JogControlsPanel.ishomingNow = true;
+
+                if(!processAbortFlag){
+                    String commandString = "G28" + conveyor2AxisLetter;
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString);
+                    }catch(Exception e){
+                    }
+                    long start = System.currentTimeMillis();
+                    while(! gcodeDriver.isOkRecieved()){
+                        MainFrame.updateMessageforJobScript("Script Status: Homing "+ conveyor2AxisLetter +"Axis");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start > 20000){
+                            MainFrame.updateMessageforJobScript("Script Status: Could Not Home "+conveyor2AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    if(!processAbortFlag){
+                        JogControlsPanel.setPcbAtSecondIrSensor=true;
+                    }
+                }
+
+                JogControlsPanel.ishomingNow = false;
+
+
+                if(!processAbortFlag){
+
+                    String commandString = "G1" + conveyor2AxisLetter + Integer.toString(-50);
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString);
+                    }catch(Exception e){
+                    }
+                    long start = System.currentTimeMillis();
+                    while(!gcodeDriver.isOkRecieved()){
+                        System.out.println("Script Status: Moving Conveyor Axis 2 to set at middle");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start > 10000){
+                            System.out.println("Script Status: Could Not Move "+conveyor2AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    if(!processAbortFlag){
+                        System.out.println("Script Status: Moved "+conveyor2AxisLetter);
+                    }
+                }
+
+                if(!processAbortFlag){
+                    try{
+                        Thread.sleep(5000);
+                    }catch(InterruptedException e){
+                    }
+                }
+
+                if(!processAbortFlag){
+                    MainFrame.updateMessageforJobScript("Clamping..");
+                    try{
+                        Thread.sleep(1000);
+                    }catch(InterruptedException e){
+                    }
+                    MainFrame.updateMessageforJobScript("Doing Job");
+                    try{
+                        Thread.sleep(1000);
+                    }catch(InterruptedException e){
+                    }
+                    MainFrame.updateMessageforJobScript("Undoing Job Done Status");
+                    try{
+                        Thread.sleep(1000);
+                    }catch(InterruptedException e){
+                    }
+                    MainFrame.updateMessageforJobScript("Un-Clamping..");
+                }
+
+                if(JogControlsPanel.ishomingNow){
+                    while(JogControlsPanel.ishomingNow){
+                        try{
+                            Thread.sleep(200);
+                        }catch(InterruptedException e){
+                        }
+                    }
+                }
+
+
+                if(!processAbortFlag){
+                    String commandString_ = "G92" + conveyor3AxisLetter + Integer.toString(0);
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString_);
+                    }catch(Exception e){
+                    }
+                    long start_ = System.currentTimeMillis();
+                    while(!gcodeDriver.isOkRecieved()){
+                        System.out.println("Script Status: Setting"+conveyor3AxisLetter+" to 00");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start_ > 10000){
+                            System.out.println("Script Status: Could Not Set "+conveyor3AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    String commandString = "G1" + conveyor2AxisLetter + Integer.toString(-400) + conveyor3AxisLetter + Integer.toString(-400);
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString);
+                    }catch(Exception e){
+                    }
+                    long start = System.currentTimeMillis();
+                    while(!gcodeDriver.isOkRecieved()){
+                        System.out.println("Script Status: Moving Conveyor Axis 2");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start > 10000){
+                            System.out.println("Script Status: Could Not Move "+conveyor2AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    if(!processAbortFlag){
+                        System.out.println("Script Status: Moved "+conveyor2AxisLetter+ "by 300");
+                    }
+                }
+
+                try{
+                    Thread.sleep(3000);
+                }catch(InterruptedException e){
+                    
+                }
+
+                if(JogControlsPanel.ishomingNow){
+                    while(JogControlsPanel.ishomingNow){
+                        try{
+                            Thread.sleep(200);
+                        }catch(InterruptedException e){
+                        }
+                    }
+                }
+
+                JogControlsPanel.ishomingNow = true;
+
+                if(!processAbortFlag){
+                    String commandString = "G28" + conveyor3AxisLetter;
+                    try{
+                        gcodeDriver.checkOkSendCommand(commandString);
+                    }catch(Exception e){
+                    }
+                    long start = System.currentTimeMillis();
+                    while(!gcodeDriver.isOkRecieved()){
+                        MainFrame.updateMessageforJobScript("Script Status: Homing "+ conveyor3AxisLetter +"Axis");
+                        try{
+                            Thread.sleep(1000);
+                        }catch(InterruptedException e){
+                        }
+                        if(System.currentTimeMillis() - start > 30000){
+                            MainFrame.updateMessageforJobScript("Script Status: Could Not Home "+conveyor3AxisLetter);
+                            processAbortFlag = true;
+                            break;
+                        }
+                    }
+                    if(!processAbortFlag){
+                        MainFrame.updateMessageforJobScript("Homed"+conveyor3AxisLetter);
+                        MainFrame.updateMessageforJobScript("Looping Again");
+                    }
+                    if(processAbortFlag){
+
+                        MainFrame.updateMessageforJobScript("Error: Close The Dialog Box");
+                        break;
+                    }
+                }
+
+                JogControlsPanel.ishomingNow = false;
+        
+                if(processAbortFlag){
+                    MainFrame.updateMessageforJobScript("Error: Close The Dialog Box");
+                    break;
+                }
+            }
+
+            if(!processAbortFlag){
+                MainFrame.updateMessageforJobScript("Done! Close Both Dialog Boxes");
+            }
+        }
+        
+    }
+}
+
 public class JogControlsPanel extends JPanel {
+    
+    public static MultiThreadProcessforJobScript threadforJobScript;
+    public static MultiThreadProcessforConveyorScript threadforConveyorScript;
+    public MultiThreadProcessforConveyorWidthScript threadforConveyorWidthScript;
+    
+    public static boolean ishomingNow = false;
+
     private final MachineControlsPanel machineControlsPanel;
     private final Configuration configuration;
     private JPanel panelActuators;
     private JSlider sliderIncrements;
     private JCheckBox boardProtectionOverrideCheck;
+    public static JButton machineStartStop;
 
+    public static boolean setPcbAtFirstIrSensor=false;
+    public static boolean setPcbAtSecondIrSensor=false;
     /**
      * Create the panel.
      */
@@ -381,7 +1117,14 @@ public class JogControlsPanel extends JPanel {
         positionNozzleBtn.setToolTipText(Translations.getString("JogControlsPanel.Action.positionSelectedNozzle"));
         panelControls.add(positionNozzleBtn, "22, 4"); //$NON-NLS-1$
 
+        JButton widthScriptButton = new JButton(startWidthScript);
+        panelControls.add(widthScriptButton, "2, 8"); //$NON-NLS-1$
+
+        JButton conveyorScriptButton = new JButton(startConveyorScript);
+        panelControls.add(conveyorScriptButton, "2, 10"); //$NON-NLS-1$
+
         JButton buttonStartStop = new JButton(machineControlsPanel.startStopMachineAction);
+        machineStartStop = buttonStartStop;
         buttonStartStop.setIcon(Icons.powerOn);
         panelControls.add(buttonStartStop, "2, 6"); //$NON-NLS-1$
         buttonStartStop.setHideActionText(true);
@@ -530,6 +1273,40 @@ public class JogControlsPanel extends JPanel {
             jog(-1, 0, 0, 0);
         }
     };
+
+    // Actions for added buttons
+    @SuppressWarnings("serial")
+    public Action startWidthScript = new AbstractAction("Ramp Width") { //$NON-NLS-1$
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            threadforConveyorWidthScript = new MultiThreadProcessforConveyorWidthScript();
+            threadforConveyorWidthScript.start();
+        }
+    };
+    @SuppressWarnings("serial")
+    public Action startConveyorScript = new AbstractAction("Actuate LED") { //$NON-NLS-1$
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            Machine machine = Configuration.get().getMachine();
+            Actuator actuator = machine.getActuatorByName("Bottom Camera Light RGB");
+            // Actuator actuator = actuators.get(0);
+            UiUtils.submitUiMachineTask(() -> {
+                AbstractActuator.assertOnOffDefined(actuator);
+                actuator.actuate(true);
+            });
+            
+        }
+    };
+    @SuppressWarnings("serial")
+    public static Action jobScriptAction = new AbstractAction("n - Jobs Script") { //$NON-NLS-1$
+        @Override
+        public void actionPerformed(ActionEvent arg0) {
+            threadforConveyorScript = new MultiThreadProcessforConveyorScript();
+            threadforConveyorScript.start();
+        }
+    };
+    //End Actions Code
+
 
     @SuppressWarnings("serial")
     public Action zPlusAction = new AbstractAction("Z+", Icons.arrowUp) { //$NON-NLS-1$

@@ -76,6 +76,7 @@ import org.openpnp.spi.base.AbstractTransformedAxis;
 import org.openpnp.util.NanosecondTime;
 import org.openpnp.util.TextUtils;
 import org.pmw.tinylog.Logger;
+import org.python.antlr.PythonParser.return_stmt_return;
 import org.simpleframework.xml.Attribute;
 import org.simpleframework.xml.Element;
 import org.simpleframework.xml.ElementList;
@@ -87,6 +88,12 @@ import com.google.common.base.Joiner;
 
 @Root
 public class GcodeDriver extends AbstractReferenceDriver implements Named {
+    public ArrayList<String> loggedResponsesForEndStopStatus = new ArrayList<>();
+    private boolean switchForCapturingEndStopStatus = false;
+    private boolean checkOkCommandForEndStopStatus = false;
+    private boolean recievedOkCommandForEndStopStatus;
+    private boolean checkOkCommand = false;
+    private boolean recievedOkCommand;
     public enum CommandType {
         COMMAND_CONFIRM_REGEX,
         POSITION_REPORT_REGEX,
@@ -1044,7 +1051,32 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
             sendCommand(command, timeout);
         }
     }
-
+    public void checkOkSendCommand(String command) throws Exception {
+        checkOkCommand = true;
+        recievedOkCommand = false;
+        sendCommand(command);
+    }
+    public boolean isOkRecieved(){
+        boolean isOkRecieved = recievedOkCommand;
+        if(isOkRecieved){
+            recievedOkCommand = false;
+            checkOkCommand = false;
+        }
+        return isOkRecieved;
+    }
+    public void checkOkSendCommandForEndStopStatus(String command) throws Exception {
+        checkOkCommandForEndStopStatus = true;
+        recievedOkCommandForEndStopStatus = false;
+        sendCommand(command);
+    }
+    public boolean isOkRecievedForEndStopStatus(){
+        boolean isOkRecievedForEndStopStatus = recievedOkCommandForEndStopStatus;
+        if(isOkRecievedForEndStopStatus){
+            recievedOkCommandForEndStopStatus = false;
+            checkOkCommandForEndStopStatus = false;
+        }
+        return isOkRecievedForEndStopStatus;
+    }
     public void sendCommand(String command) throws Exception {
         sendCommand(command, timeoutMilliseconds);
     }
@@ -1293,6 +1325,22 @@ public class GcodeDriver extends AbstractReferenceDriver implements Named {
                     }
                 }
                 Line line = new Line(receivedLine);
+                if(switchForCapturingEndStopStatus && checkOkCommandForEndStopStatus && receivedLine.equals("ok")){
+                    recievedOkCommandForEndStopStatus = true;
+                }
+                if(checkOkCommand && receivedLine.equals("ok")){
+                    recievedOkCommand = true;
+                }
+                if(receivedLine.equals("ok")){
+                    switchForCapturingEndStopStatus = false;
+                }
+                if(switchForCapturingEndStopStatus){
+                    loggedResponsesForEndStopStatus.add(receivedLine);
+                }
+                if(receivedLine.equals("Reporting endstop status")){
+                    switchForCapturingEndStopStatus = true;
+                    loggedResponsesForEndStopStatus.clear();
+                }
                 Logger.trace("[{}] << {}", getCommunications().getConnectionName(), line);
                 // Process the response.
                 processResponse(line);

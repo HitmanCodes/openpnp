@@ -37,6 +37,7 @@ import java.awt.event.ComponentListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.lang.reflect.Method;
@@ -64,6 +65,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JProgressBar;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
@@ -104,6 +106,8 @@ import com.jgoodies.forms.layout.ColumnSpec;
 import com.jgoodies.forms.layout.FormLayout;
 import com.jgoodies.forms.layout.FormSpecs;
 import com.jgoodies.forms.layout.RowSpec;
+
+import bsh.org.objectweb.asm.Label;
 
 /**
  * The main window of the application.
@@ -252,6 +256,136 @@ public class MainFrame extends JFrame {
     private JMenu mnImport;
     private JMenu mnScripts;
     private JMenu mnWindows;
+    
+
+    // Added Code for showing non blocking Dialog boxes
+
+    public static JDialog messageDialogforConveyorScript;
+    public static JScrollPane scrollPaneforConveyorScript;
+    public static JPanel panelforConveyorScript;
+    public static JLabel lablelforConveyorScript;
+    public static String strforConveyorScript;
+
+    public static JDialog messageDialogforJobScript;
+    public static JScrollPane scrollPaneforJobScript;
+    public static JPanel panelforJobScript;
+    public static JLabel lablelforJobScript;
+    public static String strforJobScript;
+
+
+    public static void showMessageforConveyorScript(String title, String message){
+        messageDialogforConveyorScript = new JDialog(mainFrame, title, false);
+        messageDialogforConveyorScript.setResizable(false);
+        messageDialogforConveyorScript.setSize(300,100);
+        messageDialogforConveyorScript.addWindowListener(new WindowListener() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                messageDialogforConveyorScript=null;
+                scrollPaneforConveyorScript=null;
+                panelforConveyorScript=null;
+                lablelforConveyorScript=null;
+                strforConveyorScript=null;
+                System.out.println("Auto Ramp Window Closed");
+                JogControlsPanel.threadforConveyorScript.stop();
+                JogControlsPanel.threadforConveyorScript=null;
+            }
+            @Override
+            public void windowActivated(WindowEvent e) {
+            }
+            @Override
+            public void windowOpened(WindowEvent e) {
+                System.out.println("Auto Ramp Window Opened");
+            }
+            @Override
+            public void windowClosing(WindowEvent e) {
+            }
+            @Override
+            public void windowIconified(WindowEvent e) {
+            }
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+            }
+            @Override
+            public void windowDeactivated(WindowEvent e) {
+            }
+        });
+        messageDialogforConveyorScript.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        strforConveyorScript = "<html>"+message+"</html>";
+        lablelforConveyorScript = new JLabel(strforConveyorScript);
+        panelforConveyorScript = new JPanel();
+        panelforConveyorScript.add(lablelforConveyorScript);
+        scrollPaneforConveyorScript = new JScrollPane(panelforConveyorScript);
+        messageDialogforConveyorScript.add(scrollPaneforConveyorScript);
+        messageDialogforConveyorScript.setVisible(true);
+    }
+    public static void updateMessageforConveyorScript(String message){
+        strforConveyorScript = "<html>"+message+"</html>";
+        lablelforConveyorScript.setText(strforConveyorScript);
+    }
+    public static void appendMessageforConveyorScript(String message){
+        strforConveyorScript = strforConveyorScript.substring(0,strforConveyorScript.length()-7)+"<br/>"+message+"</html>";
+        lablelforConveyorScript.setText(strforConveyorScript);
+    }
+
+
+
+
+    public static void showMessageforJobScript(String title, String message){
+        messageDialogforJobScript = new JDialog(mainFrame, title, false);
+        messageDialogforJobScript.setResizable(false);
+        messageDialogforJobScript.setSize(300,100);
+        messageDialogforJobScript.addWindowListener(new WindowListener() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                messageDialogforJobScript=null;
+                scrollPaneforJobScript=null;
+                panelforJobScript=null;
+                lablelforJobScript=null;
+                strforJobScript=null;
+                System.out.println("Job Script Window Closed");
+                JogControlsPanel.threadforJobScript.stop();
+                JogControlsPanel.threadforJobScript=null;
+            }
+            @Override
+            public void windowActivated(WindowEvent e) {
+            }
+            @Override
+            public void windowOpened(WindowEvent e) {
+                System.out.println("Job Script Window Opened");
+            }
+            @Override
+            public void windowClosing(WindowEvent e) {
+            }
+            @Override
+            public void windowIconified(WindowEvent e) {
+            }
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+            }
+            @Override
+            public void windowDeactivated(WindowEvent e) {
+            }
+        });
+        messageDialogforJobScript.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        strforJobScript = "<html>"+message+"</html>";
+        lablelforJobScript = new JLabel(strforJobScript);
+        panelforJobScript = new JPanel();
+        panelforJobScript.add(lablelforJobScript);
+        scrollPaneforJobScript = new JScrollPane(panelforJobScript);
+        messageDialogforJobScript.add(scrollPaneforJobScript);
+        messageDialogforJobScript.setVisible(true);
+    }
+    public static void updateMessageforJobScript(String message){
+        strforJobScript = "<html>"+message+"</html>";
+        lablelforJobScript.setText(strforJobScript);
+    }
+    public static void appendMessageforJobScript(String message){
+        strforJobScript = strforJobScript.substring(0,strforJobScript.length()-7)+"<br/>"+message+"</html>";
+        lablelforJobScript.setText(strforJobScript);
+    }
+
+
+    // End of Code 
 
     public JTabbedPane getTabs() {
         return tabs;

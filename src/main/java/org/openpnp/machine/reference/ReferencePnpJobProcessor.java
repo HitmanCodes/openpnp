@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.openpnp.gui.JogControlsPanel;
 import org.openpnp.gui.support.Wizard;
 import org.openpnp.machine.reference.vision.AbstractPartAlignment;
 import org.openpnp.machine.reference.wizards.ReferencePnpJobProcessorConfigurationWizard;
@@ -1075,6 +1076,8 @@ public class ReferencePnpJobProcessor extends AbstractPnpJobProcessor {
 
             Logger.info("Job finished {} parts in {} sec. This is {} CPH", totalPartsPlaced,
                     df.format(dtSec), df.format(totalPartsPlaced / (dtSec / 3600.0)));
+            
+            JogControlsPanel.isJobComplete=true;
 
             try {
                 HashMap<String, Object> params = new HashMap<>();

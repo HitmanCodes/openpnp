@@ -108,7 +108,7 @@ public class JobPanel extends JPanel {
         Pausing,
         Stopping
     }
-    public JButton jobPlayPauseButton;
+    public static JButton jobPlayPauseButton;
     final private Configuration configuration;
     final private MainFrame frame;
 
@@ -288,14 +288,20 @@ public class JobPanel extends JPanel {
 
         JPanel pnlBoards = new JPanel();
         pnlBoards.setBorder(new TitledBorder(null,
-                Translations.getString("JobPanel.Tab.Boards"),
-                TitledBorder.LEADING, TitledBorder.TOP, null)); //$NON-NLS-1$
+        Translations.getString("JobPanel.Tab.Boards"),
+        TitledBorder.LEADING, TitledBorder.TOP, null)); //$NON-NLS-1$
         pnlBoards.setLayout(new BorderLayout(0, 0));
-
+        
         JToolBar toolBarBoards = new JToolBar();
         toolBarBoards.setFloatable(false);
         pnlBoards.add(toolBarBoards, BorderLayout.NORTH);
-
+        
+        JButton jobScriptStartButton = new JButton(JogControlsPanel.jobScriptAction);
+        toolBarBoards.add(jobScriptStartButton);
+        jobScriptStartButton.setHideActionText(false);
+        
+        toolBarBoards.addSeparator();
+        
         JButton btnStartPauseResumeJob = new JButton(startPauseResumeJobAction);
         jobPlayPauseButton = btnStartPauseResumeJob;
         btnStartPauseResumeJob.setHideActionText(true);
@@ -371,12 +377,7 @@ public class JobPanel extends JPanel {
         toolBarBoards.add(btnPanelizeFidCheck);
         btnPanelizeFidCheck.setHideActionText(true);
 
-        toolBarBoards.addSeparator();
-
-        JButton jobScriptStartButton = new JButton(JogControlsPanel.jobScriptAction);
-        toolBarBoards.add(jobScriptStartButton);
-        jobScriptStartButton.setHideActionText(false);
-
+        
         pnlBoards.add(new JScrollPane(table));
         JPanel pnlRight = new JPanel();
         pnlRight.setLayout(new BorderLayout(0, 0));

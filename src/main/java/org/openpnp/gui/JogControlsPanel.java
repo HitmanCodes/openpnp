@@ -58,6 +58,7 @@ import org.openpnp.model.LengthUnit;
 import org.openpnp.model.Location;
 import org.openpnp.model.Motion.MotionOption;
 import org.openpnp.model.Part;
+import org.openpnp.model.Placement;
 import org.openpnp.machine.reference.driver.GcodeDriver;
 import org.openpnp.spi.Actuator;
 import org.openpnp.spi.Feeder;
@@ -74,6 +75,7 @@ import org.openpnp.util.Cycles;
 import org.openpnp.util.MovableUtils;
 import org.openpnp.util.UiUtils;
 // import org.python.core.exceptions;
+//import org.python.modules.thread.thread;
 
 import com.jgoodies.forms.layout.ColumnSpec;
 import com.jgoodies.forms.layout.FormLayout;
@@ -352,7 +354,7 @@ class MultiThreadProcessforConveyorScript extends Thread {
         }
 
         if(!processAbortFlag){
-            MainFrame.showMessageforConveyorScript("Conveyor Automated Process","Automated Conveyor Started..");
+            MainFrame.nJobsPlusConveyorScriptPanel.showMessageforConveyorScript("Conveyor Automated Process","Automated Conveyor Started..");
             while(true){    
                 if(!processAbortFlag){
                     Map<String, Boolean> dictionary = EndStopConversations.checkEndStops("null checking");
@@ -361,7 +363,7 @@ class MultiThreadProcessforConveyorScript extends Thread {
                     }
                     else{
                         if(dictionary.get(conveyor1AxisEndStopString)){
-                            MainFrame.updateMessageforConveyorScript("Waiting PCB at IR Sensor 1");
+                            MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("Waiting PCB at IR Sensor 1");
                             if(JogControlsPanel.ishomingNow){
                                 while(JogControlsPanel.ishomingNow){
                                     try{
@@ -370,8 +372,8 @@ class MultiThreadProcessforConveyorScript extends Thread {
                                     }
                                 }
                             }
+                            System.out.println("Waiting PCB at IR Sensor 1");
                             while(EndStopConversations.checkEndStops("pcb at IR sensor 1").get(conveyor1AxisEndStopString)){
-                                System.out.println("Waiting PCB at IR Sensor 1");
                                 try{
                                     Thread.sleep(1500);
                                 }catch(InterruptedException e){
@@ -386,7 +388,7 @@ class MultiThreadProcessforConveyorScript extends Thread {
                                 }
                             }
                         }
-                        MainFrame.updateMessageforConveyorScript("PCB Ready at IR Sensor 1");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("PCB Ready at IR Sensor 1");
                     }
                 }
 
@@ -409,13 +411,13 @@ class MultiThreadProcessforConveyorScript extends Thread {
                     }
                     long start = System.currentTimeMillis();
                     while(! gcodeDriver.isOkRecieved()){
-                        MainFrame.updateMessageforConveyorScript("Script Status: Homing "+ conveyor1AxisLetter +"Axis");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("Script Status: Homing "+ conveyor1AxisLetter +"Axis");
                         try{
                             Thread.sleep(1000);
                         }catch(InterruptedException e){
                         }
                         if(System.currentTimeMillis() - start > 10000){
-                            MainFrame.updateMessageforConveyorScript("Script Status: Could Not Home "+conveyor1AxisLetter);
+                            MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("Script Status: Could Not Home "+conveyor1AxisLetter);
                             processAbortFlag = true;
                             break;
                         }
@@ -429,7 +431,7 @@ class MultiThreadProcessforConveyorScript extends Thread {
 
                 if(!processAbortFlag){
                     if(!JogControlsPanel.setPcbAtSecondIrSensor){
-                        MainFrame.updateMessageforConveyorScript("Waiting for delivery at 2nd IR Sensor");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("Waiting for delivery at 2nd IR Sensor");
                         while(!JogControlsPanel.setPcbAtSecondIrSensor){
                             try{
                                 Thread.sleep(1000);
@@ -437,21 +439,49 @@ class MultiThreadProcessforConveyorScript extends Thread {
                             }
                         }
                     }
-                    MainFrame.updateMessageforConveyorScript("Recieved at 2nd IR Sensor");
-                    MainFrame.updateMessageforConveyorScript("Looping Again");
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("Recieved at 2nd IR Sensor");
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforConveyorScript("Looping Again");
                     JogControlsPanel.setPcbAtSecondIrSensor=false;
                 }
 
 
                 if(processAbortFlag){
 
-                    MainFrame.updateMessageforConveyorScript("Error: Close The Dialog Box");
+                    MainFrame.showMessageforScript("Error Occured", "Error Occured at Conveyor Thread. Check Logs Panel.");
                     break;
                 }
             }
         }
         if(processAbortFlag){
+            if(JogControlsPanel.threadforJobScript!=null){
+                JogControlsPanel.threadforJobScript.stop();
+            }
+            JogControlsPanel.threadforJobScript=null;
             JogControlsPanel.threadforConveyorScript=null;
+
+
+            NJobsPlusConveyorScriptPanel.panelforConveyorScript.removeAll();
+            NJobsPlusConveyorScriptPanel.panelforConveyorScript.revalidate();
+            NJobsPlusConveyorScriptPanel.panelforConveyorScript.repaint();
+            NJobsPlusConveyorScriptPanel.scrollPaneforConveyorScript.revalidate();
+            NJobsPlusConveyorScriptPanel.scrollPaneforConveyorScript.repaint();
+            NJobsPlusConveyorScriptPanel.lablelforConveyorScript=null;
+            NJobsPlusConveyorScriptPanel.strforConveyorScript=null;
+
+            NJobsPlusConveyorScriptPanel.panelforJobScript.removeAll();
+            NJobsPlusConveyorScriptPanel.panelforJobScript.revalidate();
+            NJobsPlusConveyorScriptPanel.panelforJobScript.repaint();
+            NJobsPlusConveyorScriptPanel.scrollPaneforJobScript.revalidate();
+            NJobsPlusConveyorScriptPanel.scrollPaneforJobScript.repaint();
+            NJobsPlusConveyorScriptPanel.lablelforJobScript=null;
+            NJobsPlusConveyorScriptPanel.strforJobScript=null;
+
+            MainFrame.nJobsPlusConveyorScriptPanel.remove(MainFrame.nJobsPlusConveyorScriptPanel.abortButton);
+            MainFrame.nJobsPlusConveyorScriptPanel.revalidate();
+            MainFrame.nJobsPlusConveyorScriptPanel.repaint();
+
+
+            this.stop();
         }
     }
 }
@@ -468,6 +498,16 @@ class MultiThreadProcessforJobScript extends Thread {
       
     @Override
     public void run() {
+        List<BoardLocation> boardLocations = MainFrame.get().getMachineControls().getJobPanel().getJob().getBoardLocations();
+        if(boardLocations.size()==0){
+            MainFrame.showMessageforScript("No Board Imported", "Empty Board List Found. Please Import a Board before staring the Script.");
+            NJobsPlusConveyorScriptPanel.abortButton.doClick();
+        }
+
+        BoardLocation boardLocation = boardLocations.get(0);
+        List<Placement> allPlacements = boardLocation.getBoard().getPlacements();
+        List<String> enabledButNotPlacedPlacementsId = new ArrayList<>();
+        
         
 
         String conveyor1AxisLetter = "X";
@@ -518,14 +558,14 @@ class MultiThreadProcessforJobScript extends Thread {
         int n = numberOfPcbs;
 
         if(!processAbortFlag){
-            MainFrame.showMessageforJobScript("n Jobs for n Number Of PCBs","n Jobs Script Started..");
+            MainFrame.nJobsPlusConveyorScriptPanel.showMessageforJobScript("n Jobs for n Number Of PCBs","n Jobs Script Started..");
             while(n-->0){
                 
                 if(!processAbortFlag){
                     if(!JogControlsPanel.setPcbAtFirstIrSensor){
-                        MainFrame.updateMessageforJobScript("Waiting set PCB at IR Sensor 1");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Waiting set PCB at IR Sensor 1");
+                        System.out.println("Waiting set PCB at IR Sensor 1");
                         while(!JogControlsPanel.setPcbAtFirstIrSensor){
-                            System.out.println("Waiting set PCB at IR Sensor 1");
                             try{
                                 Thread.sleep(1000);
                             }catch(InterruptedException e){
@@ -533,7 +573,7 @@ class MultiThreadProcessforJobScript extends Thread {
                         }
                     }
                     JogControlsPanel.setPcbAtFirstIrSensor = false;
-                    MainFrame.updateMessageforJobScript("PCB set at IR Sensor 1");
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("PCB set at IR Sensor 1");
 
                     if(JogControlsPanel.ishomingNow){
                         while(JogControlsPanel.ishomingNow){
@@ -545,10 +585,10 @@ class MultiThreadProcessforJobScript extends Thread {
                     }
 
                     if(!EndStopConversations.checkEndStops("Empty 2nd Sensor").get(conveyor2AxisEndStopString)){
-                        MainFrame.updateMessageforJobScript("Empty IR Sensor 2.. Caliing");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Empty IR Sensor 2.. Caliing");
                     }
                     else{
-                        MainFrame.updateMessageforJobScript("Error: Something Detected at IR Sensor 2");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Error: Something Detected at IR Sensor 2");
                         processAbortFlag = true;
                         break;
                     }
@@ -620,14 +660,14 @@ class MultiThreadProcessforJobScript extends Thread {
                     }catch(Exception e){
                     }
                     long start = System.currentTimeMillis();
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Script Status: Homing "+ conveyor2AxisLetter +"Axis");
                     while(! gcodeDriver.isOkRecieved()){
-                        MainFrame.updateMessageforJobScript("Script Status: Homing "+ conveyor2AxisLetter +"Axis");
                         try{
                             Thread.sleep(1000);
                         }catch(InterruptedException e){
                         }
                         if(System.currentTimeMillis() - start > 20000){
-                            MainFrame.updateMessageforJobScript("Script Status: Could Not Home "+conveyor2AxisLetter);
+                            MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Script Status: Could Not Home "+conveyor2AxisLetter);
                             processAbortFlag = true;
                             break;
                         }
@@ -673,22 +713,52 @@ class MultiThreadProcessforJobScript extends Thread {
                 }
 
                 if(!processAbortFlag){
-                    MainFrame.updateMessageforJobScript("Clamping..");
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Clamping..");
                     try{
                         Thread.sleep(1000);
                     }catch(InterruptedException e){
                     }
-                    MainFrame.updateMessageforJobScript("Doing Job");
+                    
+                    
+                    if(n==numberOfPcbs-1){
+                        JobPanel.jobPlayPauseButton.setEnabled(false);
+                        MainFrame.showMessageforScript("Important!", "Press 'Continue' once you have set the machine ready to perform the Job.");
+                        JobPanel.jobPlayPauseButton.setEnabled(true);
+                    }
+                    enabledButNotPlacedPlacementsId.clear();
+                    for(Placement p: allPlacements){
+                        if(p.isEnabled() && !boardLocation.getPlaced(p.getId())){
+                            enabledButNotPlacedPlacementsId.add(p.getId());
+                            System.out.println(p.getId());
+                        }
+                    }
+                    JobPanel.jobPlayPauseButton.doClick();
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Doing Job");
+                    
+                    while(!JogControlsPanel.isJobComplete){
+                        try{
+                            Thread.sleep(2000);
+                        }catch(InterruptedException e){
+                        }
+                    }
+                    
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Job Done");
+                    
+                    
+                    for(String id: enabledButNotPlacedPlacementsId){
+                        boardLocation.setPlaced(id, false);;
+                    }
+                    JogControlsPanel.isJobComplete = false;
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Undoing Job Done Status");
+                    
+                    
                     try{
                         Thread.sleep(1000);
                     }catch(InterruptedException e){
                     }
-                    MainFrame.updateMessageforJobScript("Undoing Job Done Status");
-                    try{
-                        Thread.sleep(1000);
-                    }catch(InterruptedException e){
-                    }
-                    MainFrame.updateMessageforJobScript("Un-Clamping..");
+
+
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Un-Clamping..");
                 }
 
                 if(JogControlsPanel.ishomingNow){
@@ -709,7 +779,7 @@ class MultiThreadProcessforJobScript extends Thread {
                     }
                     long start_ = System.currentTimeMillis();
                     while(!gcodeDriver.isOkRecieved()){
-                        System.out.println("Script Status: Setting"+conveyor3AxisLetter+" to 00");
+                        System.out.println("Script Status: Setting "+conveyor3AxisLetter+" to 00");
                         try{
                             Thread.sleep(1000);
                         }catch(InterruptedException e){
@@ -767,25 +837,25 @@ class MultiThreadProcessforJobScript extends Thread {
                     }catch(Exception e){
                     }
                     long start = System.currentTimeMillis();
+                    MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Script Status: Homing "+ conveyor3AxisLetter +"Axis");
                     while(!gcodeDriver.isOkRecieved()){
-                        MainFrame.updateMessageforJobScript("Script Status: Homing "+ conveyor3AxisLetter +"Axis");
                         try{
                             Thread.sleep(1000);
                         }catch(InterruptedException e){
                         }
                         if(System.currentTimeMillis() - start > 30000){
-                            MainFrame.updateMessageforJobScript("Script Status: Could Not Home "+conveyor3AxisLetter);
+                            MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Script Status: Could Not Home "+conveyor3AxisLetter);
                             processAbortFlag = true;
                             break;
                         }
                     }
                     if(!processAbortFlag){
-                        MainFrame.updateMessageforJobScript("Homed"+conveyor3AxisLetter);
-                        MainFrame.updateMessageforJobScript("Looping Again");
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Homed "+conveyor3AxisLetter);
+                        MainFrame.nJobsPlusConveyorScriptPanel.appendMessageforJobScript("Looping Again");
                     }
                     if(processAbortFlag){
 
-                        MainFrame.updateMessageforJobScript("Error: Close The Dialog Box");
+                        MainFrame.showMessageforScript("Error Occured", "Error Occured at Job Thread. Check Logs Panel.");
                         break;
                     }
                 }
@@ -793,16 +863,49 @@ class MultiThreadProcessforJobScript extends Thread {
                 JogControlsPanel.ishomingNow = false;
         
                 if(processAbortFlag){
-                    MainFrame.updateMessageforJobScript("Error: Close The Dialog Box");
+                    MainFrame.showMessageforScript("Error Occured", "Error Occured at Job Thread. Check Logs Panel.");
                     break;
                 }
             }
 
+            if(processAbortFlag){
+                MainFrame.showMessageforScript("Error Occured", "Error Occured at Job Thread. Check Logs Panel.");
+            }
+
             if(!processAbortFlag){
-                MainFrame.updateMessageforJobScript("Done! Close Both Dialog Boxes");
+                MainFrame.showMessageforScript("Completed","Process Completed with " + numberOfPcbs +"(s) PCBs." );
             }
         }
-        
+        if(processAbortFlag || n==-1){
+            // NJobsPlusConveyorScriptPanel.abortButton.doClick();
+            if(JogControlsPanel.threadforConveyorScript!=null){
+                JogControlsPanel.threadforConveyorScript.stop();
+            }
+            JogControlsPanel.threadforConveyorScript=null;
+            JogControlsPanel.threadforJobScript=null;
+
+            NJobsPlusConveyorScriptPanel.panelforConveyorScript.removeAll();
+            NJobsPlusConveyorScriptPanel.panelforConveyorScript.revalidate();
+            NJobsPlusConveyorScriptPanel.panelforConveyorScript.repaint();
+            NJobsPlusConveyorScriptPanel.scrollPaneforConveyorScript.revalidate();
+            NJobsPlusConveyorScriptPanel.scrollPaneforConveyorScript.repaint();
+            NJobsPlusConveyorScriptPanel.lablelforConveyorScript=null;
+            NJobsPlusConveyorScriptPanel.strforConveyorScript=null;
+
+            NJobsPlusConveyorScriptPanel.panelforJobScript.removeAll();
+            NJobsPlusConveyorScriptPanel.panelforJobScript.revalidate();
+            NJobsPlusConveyorScriptPanel.panelforJobScript.repaint();
+            NJobsPlusConveyorScriptPanel.scrollPaneforJobScript.revalidate();
+            NJobsPlusConveyorScriptPanel.scrollPaneforJobScript.repaint();
+            NJobsPlusConveyorScriptPanel.lablelforJobScript=null;
+            NJobsPlusConveyorScriptPanel.strforJobScript=null;
+
+            MainFrame.nJobsPlusConveyorScriptPanel.remove(MainFrame.nJobsPlusConveyorScriptPanel.abortButton);
+            MainFrame.nJobsPlusConveyorScriptPanel.revalidate();
+            MainFrame.nJobsPlusConveyorScriptPanel.repaint();
+
+            this.stop();
+        }
     }
 }
 
@@ -823,6 +926,7 @@ public class JogControlsPanel extends JPanel {
 
     public static boolean setPcbAtFirstIrSensor=false;
     public static boolean setPcbAtSecondIrSensor=false;
+    public static boolean isJobComplete=false;
     /**
      * Create the panel.
      */
@@ -1301,8 +1405,16 @@ public class JogControlsPanel extends JPanel {
     public static Action jobScriptAction = new AbstractAction("n - Jobs Script") { //$NON-NLS-1$
         @Override
         public void actionPerformed(ActionEvent arg0) {
-            threadforConveyorScript = new MultiThreadProcessforConveyorScript();
-            threadforConveyorScript.start();
+            if(threadforConveyorScript==null){
+                isJobComplete=false;
+                ishomingNow = false;
+                setPcbAtFirstIrSensor = false;
+                setPcbAtSecondIrSensor = false;
+                threadforConveyorScript = new MultiThreadProcessforConveyorScript();
+                threadforConveyorScript.start();
+            }else{
+                UI.showMessage("Already Running");
+            }
         }
     };
     //End Actions Code

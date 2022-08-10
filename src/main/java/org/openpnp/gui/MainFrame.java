@@ -56,6 +56,7 @@ import javax.swing.Action;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JDialog;
@@ -113,6 +114,7 @@ import com.jgoodies.forms.layout.FormSpecs;
 import com.jgoodies.forms.layout.RowSpec;
 
 import bsh.org.objectweb.asm.Label;
+
 
 /**
  * The main window of the application.
@@ -442,6 +444,7 @@ public class MainFrame extends JFrame {
 
     public MainFrame(Configuration configuration) {
         mainFrame = this;
+        mainFrame.setIconImage(((ImageIcon)Icons.openpnp).getImage());
         this.configuration = configuration;
         LengthCellValue.setConfiguration(configuration);
         RotationCellValue.setConfiguration(configuration);

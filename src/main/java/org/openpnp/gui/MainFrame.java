@@ -53,6 +53,7 @@ import java.util.prefs.Preferences;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
@@ -73,6 +74,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.BevelBorder;
@@ -182,7 +184,7 @@ public class MainFrame extends JFrame {
     public static void showMessageforScript(String title, String message){
         messageDialogGeneral = new JDialog(mainFrame, title+" (Closing this window will abort the process.)", false);
         messageDialogGeneral.setResizable(false);
-        messageDialogGeneral.setSize(300,200);
+        messageDialogGeneral.setSize(600,150);
         messageDialogGeneral.addWindowListener(new WindowListener() {
             @Override
             public void windowClosed(WindowEvent e) {
@@ -197,6 +199,7 @@ public class MainFrame extends JFrame {
             public void windowClosing(WindowEvent e) {
                 if(!okButton.isSelected()){
                     System.out.println("Process Aborted");
+                    JobPanel.jobPlayPauseButton.setEnabled(true);
                     okButton=null;
                     messageDialogGeneral=null;
                     panelforScriptGeneral=null;
@@ -263,6 +266,7 @@ public class MainFrame extends JFrame {
         abortButton.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
                 System.out.println("Process Aborted");
+                JobPanel.jobPlayPauseButton.setEnabled(true);
                 messageDialogGeneral.dispose();
                 okButton=null;
                 messageDialogGeneral=null;
@@ -301,14 +305,25 @@ public class MainFrame extends JFrame {
         });
         messageDialogGeneral.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         strforScriptGeneral = "<html>"+message+"</html>";
-        lablelforScriptGeneral = new JLabel(strforScriptGeneral);
+        lablelforScriptGeneral = new JLabel(strforScriptGeneral,SwingConstants.CENTER);
         lablelforScriptGeneral.setAlignmentX(0.5f);
         panelforScriptGeneral = new JPanel();
         panelforScriptGeneral.setLayout(new BoxLayout(panelforScriptGeneral, BoxLayout.Y_AXIS));
+        panelforScriptGeneral.add(Box.createHorizontalGlue());
+        panelforScriptGeneral.add(Box.createVerticalGlue());
         panelforScriptGeneral.add(lablelforScriptGeneral);
-        panelforScriptGeneral.add(okButton);
-        panelforScriptGeneral.add(abortButton);
+        panelforScriptGeneral.add(Box.createVerticalGlue());
+        JPanel buttons = new JPanel();
+        buttons.add(Box.createHorizontalGlue());
+        buttons.add(okButton);
+        buttons.add(Box.createHorizontalGlue());
+        buttons.add(abortButton);
+        buttons.add(Box.createHorizontalGlue());
+        panelforScriptGeneral.add(buttons);
+        panelforScriptGeneral.add(Box.createVerticalGlue());
+        panelforScriptGeneral.add(Box.createHorizontalGlue());
         messageDialogGeneral.add(panelforScriptGeneral);
+        messageDialogGeneral.setLocationRelativeTo(MainFrame.get());
         messageDialogGeneral.setVisible(true);
         JogControlsPanel.threadforConveyorScript.suspend();
         JogControlsPanel.threadforJobScript.suspend();
@@ -1547,6 +1562,7 @@ class NJobsPlusConveyorScriptPanel extends JPanel{
         abortButton.setAlignmentX(0.5f);
         abortButton.addActionListener(new ActionListener(){
             public void actionPerformed(ActionEvent e){
+                JobPanel.jobPlayPauseButton.setEnabled(true);
                 panelforConveyorScript.removeAll();
                 panelforConveyorScript.revalidate();
                 panelforConveyorScript.repaint();
@@ -1634,7 +1650,9 @@ class NJobsPlusConveyorScriptPanel extends JPanel{
         lablelforConveyorScript.setText(strforConveyorScript);
     }
     public void appendMessageforConveyorScript(String message){
-        strforConveyorScript = strforConveyorScript.substring(0,strforConveyorScript.length()-7)+"<br/>"+message+"</html>";
+        if(strforConveyorScript!=null){
+            strforConveyorScript = strforConveyorScript.substring(0,strforConveyorScript.length()-7)+"<br/>"+message+"</html>";
+        }
         lablelforConveyorScript.setText(strforConveyorScript);
         scrollPaneforConveyorScript.revalidate();
         scrollPaneforConveyorScript.repaint();
@@ -1700,7 +1718,9 @@ class NJobsPlusConveyorScriptPanel extends JPanel{
         lablelforJobScript.setText(strforJobScript);
     }
     public void appendMessageforJobScript(String message){
-        strforJobScript = strforJobScript.substring(0,strforJobScript.length()-7)+"<br/>"+message+"</html>";
+        if(strforJobScript!=null){
+            strforJobScript = strforJobScript.substring(0,strforJobScript.length()-7)+"<br/>"+message+"</html>";
+        }
         lablelforJobScript.setText(strforJobScript);
         scrollPaneforJobScript.revalidate();
         scrollPaneforJobScript.repaint();

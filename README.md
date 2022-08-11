@@ -55,7 +55,7 @@ The detailed documentation about the OpenPnP software: https://github.com/openpn
 * Icons.java
 
 ## Objective
-To add conveyor/ramp support to the openPnPv2 software and adding the functionality of a batch processes.
+To add conveyor/ramp support to the openPnPv2 software and adding the functionality of a batch process.
 
 ## Result/Guide
 ### Launching the software

@@ -101,8 +101,8 @@ Following variables are hardcoded in the JogControlsPanel.java and can be easily
 ![image](https://user-images.githubusercontent.com/72141209/184109920-62531ce4-c0a2-4c80-a915-3926f5997713.png)
 
 ### Extra Requisites and Editable Codes
-* Negative Values to be used for forward motion of the 3 conveyor axis. ForEx: G1X-250Y-250
-* All Homing Commands for conveyor axes should make each axis approach forward motion to wait for triggered status at corresponding endstop.
+* Negative Values to be used for forward motion of all the 3 conveyor axes. ForEx: G1X-250Y-250
+* All Homing Commands for conveyor axes should make the axis approach forward motion to wait for triggered status at corresponding endstop.
 * All motions of conveyor axes are supposed to be calibrated according to the values(in mm) send in GCodes. For Ex. G1Y10 should move Y axis exactly by 10mm.
 * The EndStop Status for Conveyor 1 Axis is reversed at firmware. "TRIGGERED" normally and "open" for detection.
 * Waiting time for each process can be changed at various instances as shown:
